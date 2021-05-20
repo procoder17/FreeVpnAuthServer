@@ -1,0 +1,103 @@
+*********************************************
+Install Root certificates from on Windows
+*********************************************
+
+This is how you can add digital certificates to Windows 10 from trusted CAs.
+
+First, you’ll need to download a root certificate from a CA. For example, you could download one from the GeoTrust site.
+Next, open Local Security Policy in Windows by pressing the Win key + R hotkey and entering ‘secpol.msc’ in Run’s text box. Note that Windows 10 Home edition doesn’t include the Local Security Policy editor. If your Windows key doesn’t work, check this quick guide to fix it.
+Then, click Public Key Policies and Certificate Path Validation Settings to open a Certificate Path Validation Settings Properties window.
+Click the Stores tab and select the Define these policy settings check box.
+Select the Allow user trusted root CAs to be used to validate certificates and Allow users to trust peer trust certificates options if they’re not already selected.
+You should also select the Third-Party Root CAs and Enterprise Root CAs checkbox and press the Apply > OK buttons to confirm the selected settings.
+Next, press the Win key + R hotkey and enter ‘certmgr.msc’ in Run’s text box to open the window shown in the snapshot directly below. That’s the Certification Manager which lists your digital certificates.
+certificates manager
+Click Trusted Root Certification Authorities and right-click Certificates to open a context menu.
+Select All Tasks > Import on the context menu to open the window shown below.
+certificate import wizard
+Press the Next button, click Browse, and then select the digital certificate root file saved to your HDD.
+Press Next again to select the Automatically select the certificate store based on the type of certificate option.
+Then you can press Next > Finish to wrap up the import wizard. A window will open confirming that “the import was successful.”
+
+------------------------------------------------------------------------------
+How to Create Your Own SSL Certificate Authority for Local HTTPS Development
+------------------------------------------------------------------------------
+To request an SSL certificate from a CA like Verisign or GoDaddy, you send them a Certificate Signing Request (CSR), and they give you a certificate in return that they signed using their root certificate and private key. All browsers have a copy (or access a copy from the operating system) of Verisign’s root certificate, so the browser can verify that your certificate was signed by a trusted CA.
+
+That’s why when you generate a self-signed certificate the browser doesn’t trust it. It’s self-signed. It hasn’t been signed by a CA. But we can generate our own root certificate and private key. We then add the root certificate to all the devices we own just once, and then all certificates that we generate and sign will be inherently trusted.
+
+Becoming a (tiny) Certificate Authority
+It’s kind of ridiculous how easy it is to generate the files needed to become a certificate authority. It only takes two commands. First, we generate our private key:
+
+C:\Program Files\OpenVPN\easy-rsa\init-config.bat
+C:\Program Files\OpenVPN\easy-rsa\vars.bat
+set OPENSSL_CONF=C:\Program Files\OpenVPN\easy-rsa\openssl-1.0.0.cnf  
+
+----------------------------CREATE A ROOT CERTIFICATE-------------------------------
+######################
+# Become a Certificate Authority
+######################
+
+# Generate private key
+openssl genrsa -des3 -out myCA.key 2048
+# Generate root certificate
+openssl req -x509 -new -nodes -key myCA.key -sha256 -days 825 -out myCA.pem
+
+-------------------------------CREATE A CERTIFICATE BASED ON THE ABOVE ROOT CERTIFICATE-------------------------
+######################
+# Create CA-signed certs
+######################
+
+NAME=mydomain.com # Use your own domain name
+# Generate a private key
+openssl genrsa -out %NAME%.key 2048
+# Create a certificate-signing request
+openssl req -new -key %NAME%.key -out %NAME%.csr
+# Create a config file for the extensions
+>%NAME%.ext cat <<-EOF
+authorityKeyIdentifier=keyid,issuer
+basicConstraints=CA:FALSE
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
+subjectAltName = @alt_names
+[alt_names]
+DNS.1 = %NAME% # Be sure to include the domain name here because Common Name is not so commonly honoured by itself
+DNS.2 = bar.%NAME% # Optionally, add additional domains (I've added a subdomain here)
+IP.1 = 192.168.0.13 # Optionally, add an IP address (if the connection which you have planned requires it)
+EOF
+# Create the signed certificate
+openssl x509 -req -in %NAME%.csr -CA myCA.pem -CAkey myCA.key -CAcreateserial -out %NAME%.crt -days 825 -sha256 -extfile %NAME%.ext
+
+--------------------------PRIVATE&PUBLIC KEY PAIR FOR elliptic curve encryption-----------------------------
+#Generate private and public key pair for elliptic curve encryption
+OpenSSL ECDSA Cheat Sheet
+# find your curve
+openssl ecparam -list_curves
+
+# generate a private key for a curve
+openssl ecparam -name prime256v1 -genkey -noout -out private-key.pem
+
+# generate corresponding public key
+openssl ec -in private-key.pem -pubout -out public-key.pem
+
+# optional: create a self-signed certificate
+openssl req -new -x509 -key private-key.pem -out cert.pem -days 360
+
+# optional: convert pem to pfx
+openssl pkcs12 -export -inkey private-key.pem -in cert.pem -out cert.pfx
+
+---------------------------------INSTALL NODE.JS ON CENT OS 7--------------------------------------
+#install node.js on cenos
+1. Install NVM (Node Version Manager)
+To download the nvm install script run the following command:
+$curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.35.3/install.sh | bash
+Restart the shell or ssh connection.
+To verify that nvm was properly installed type:
+nvm --version
+2. Install Node.js using NVM
+nvm install node
+#Verify the Node.js version, by typing:
+node --version
+
+--------------------------------UPLOAD CERTIFICATE AND EC PRIVATE KEY ON THE SERVER--------------------
+Run the Command Prompt
+>scp D:\Work\AuthServer\au_private-key.pem root@hk3.hoantech.io:/home/au_private-key.pem

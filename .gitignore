@@ -1,0 +1,8 @@
+Certificate
+node_modules
+.env
+2048
+server.js
+mykey.pem
+au_private-key.pem
+au_public-key.pem
